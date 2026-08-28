@@ -13,6 +13,7 @@
 - [技术选择与限制](docs/DECISIONS.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全问题报告](SECURITY.md)
+- [MIT 许可证](LICENSE)
 
 ## 项目中哪些内容是真实运行的
 
@@ -221,6 +222,7 @@ docs/VALIDATION.md               可复核的参考验证记录
 docs/BEGINNER_GUIDE.md           零基础流程、参数、指标和调试详解
 CONTRIBUTING.md                  贡献流程和提交前检查
 SECURITY.md                      私下报告安全问题的方式
+LICENSE                          MIT 许可证全文
 ```
 
 ## 当前验证状态
@@ -234,4 +236,5 @@ SECURITY.md                      私下报告安全问题的方式
 
 - 提交问题或代码前，请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 - 安全漏洞不要发布到公开 Issue，请按 [SECURITY.md](SECURITY.md) 私下报告。
-- 当前仓库尚未添加 `LICENSE`。公开可见不等于已经授予复制、修改或再分发权；许可证需要由仓库所有者 review 后明确选择。
+- 本项目采用 [MIT License](LICENSE)。你可以使用、修改和分发本项目，但必须保留许可证中的版权与许可声明。
+- 基础模型和第三方依赖仍适用各自的许可证；本项目的 MIT 许可证不会替代它们。
