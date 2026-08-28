@@ -1,132 +1,100 @@
-# 参考验证记录与结果解释
+# Docker 验证记录
 
 ## 验证范围
 
-验证时间为 2026-08-28（Asia/Shanghai）。目标是记录一次可复核的 Windows 本地运行结果，
-证明该项目能够完成数据校验、真实训练、测试评估、推理和 API 服务。记录不包含维护者
-机器的用户名、盘符或工作区位置，也不包含公网生产发布或 Kubernetes 验收。
+验证日期为 2026-08-28（Asia/Shanghai）。本次从 Docker 镜像构建开始，实际执行容器内代码规范检查、单元测试、数据校验、CPU 训练、独立测试评估、CLI 推理、Compose API 和发布镜像验收。
 
-## 实测环境
+宿主机 Python 不属于交付环境。Docker Hub 推送和 Kubernetes 是独立阶段，状态单独记录。
 
-| 项目 | 实测值 | 含义 |
-| --- | --- | --- |
-| 操作系统 | Windows 11 25H2（build 26200.8875） | 本记录只证明该 Windows 环境，不自动代表其他平台 |
-| PowerShell | Windows PowerShell 5.1、PowerShell 7.6.4 | 两种版本均验证中文 JSON 请求显式使用 UTF-8 |
-| Python | 3.12.13 | 执行训练和服务的 Python 版本 |
-| PyTorch | `2.8.0+cpu` | 当前安装包不包含 CUDA，因此即使代码支持自动选择 GPU，本次环境也只能使用 CPU |
-| 训练设备 | CPU | 本次没有使用 GPU，证明普通 CPU 路径可运行 |
-| 基础模型 | `hfl/rbt3` | 微调开始前的中文预训练模型 |
-| 模型提交版本 | `0412ffdc25bf738c556d523f8553bd69efe6405b` | 固定基础模型文件，避免上游变化 |
-| 生成的模型版本 | `20260828T123504Z` | 模型保存时的 UTC 时间戳 |
-| 随机种子 | 42 | 尽量让数据打乱和训练过程可重复 |
+## 容器环境
+
+| 项目 | 实测值 |
+| --- | --- |
+| Docker Engine | 29.6.2，Linux amd64 |
+| Docker Compose | 5.3.1 |
+| 基础镜像来源 | DaoCloud Docker Hub 代理 |
+| 基础镜像 | Python 3.13.15 slim |
+| 基础镜像摘要 | `sha256:7ce4b6dfe35e55397b7cda544f8a13f191b7ae28dc5aad71fe664dbc9bc2623f` |
+| Python | 3.13.15 |
+| PyTorch | `2.8.0+cpu` |
+| CUDA 可用 | `False` |
+| Pydantic Core | 2.33.2，Python 3.13 Linux 轮子 |
+| NumPy | 2.3.2，Python 3.13 Linux 轮子 |
+| Python 包来源 | 阿里云 PyPI 与阿里云 PyTorch CPU wheels |
+| 基础模型来源 | `hf-mirror.com` |
+| 基础模型 | `hfl/rbt3` |
+| 基础模型 revision | `0412ffdc25bf738c556d523f8553bd69efe6405b` |
 
 ## 验证结论
 
-| 阶段 | 结果 | 直白解释 |
+| 阶段 | 状态 | 实际证据 |
 | --- | --- | --- |
-| 静态代码检查 | PASS | 没有发现配置的代码规范错误 |
-| 单元测试 | PASS，3 项 | 数据校验、文档和 API 契约测试通过 |
-| 数据集校验 | PASS | 500 条训练、120 条验证、120 条测试均可读取，每类数量均衡 |
-| 跨数据集重复检查 | PASS | 没有发现完全相同评论泄漏到不同集合 |
-| 真实微调 | PASS，5 epochs | 模型参数确实经过反向传播更新 |
-| 最佳验证宏平均 F1 | 1.000 | 第 4 轮在 120 条验证数据上四类综合 F1 为 100% |
-| 独立测试准确率 | 0.958 | 120 条测试数据答对 115 条 |
-| 独立测试宏平均 F1 | 0.958 | 四类 F1 等权平均约为 95.8% |
-| 投诉召回率 | 1.000，PASS | 30 条合成投诉全部识别，超过 0.70 门槛 |
-| 已保存模型命令行推理 | PASS | 保存后的模型可以重新加载并预测 |
-| FastAPI 健康检查 | PASS | `/health` 能返回状态和模型版本 |
-| FastAPI 预测请求 | PASS | `/predict` 能处理实际中文评论 |
+| 开发镜像构建 | PASS | Python 3.13.15 与 CPU-only PyTorch 镜像构建成功 |
+| Ruff | PASS | `All checks passed!` |
+| Pytest | PASS | `4 passed` |
+| 数据校验 | PASS | train 500、validation 120、test 120；四类均衡且跨集合无重复 |
+| 真实训练 | PASS | CPU 完成 5 epochs，保存最佳模型与同一 tokenizer |
+| 独立测试评估 | PASS | 生成 JSON、CSV 和 Markdown 报告 |
+| CLI 推理 | PASS | “客服一直不处理退款”预测为 `complaint` |
+| Compose API | PASS | 容器 `healthy`，`/health` 与 `/predict` 返回成功 |
+| 发布镜像构建 | PASS | `songleo/comment-classification-e2e:0.1.0` 本地构建成功 |
+| 发布镜像独立运行 | PASS | 不挂载源码或模型目录时容器 `healthy`，接口返回成功 |
+| Docker Hub 推送 | BLOCKED | `registry-1.docker.io:443` 直连超时；Docker Desktop 没有可用 HTTPS proxy，远端 digest 尚未产生 |
+| Kubernetes | UNKNOWN | 没有获批集群、服务端 dry-run、rollout 或接口证据 |
 
-## 本次训练过程
+## 训练与评估结果
 
-| Epoch | 训练 loss | 训练宏平均 F1 | 验证 loss | 验证宏平均 F1 |
-| ---: | ---: | ---: | ---: | ---: |
-| 1 | 0.8540 | 0.6759 | 0.2669 | 0.9585 |
-| 2 | 0.1909 | 0.9459 | 0.1015 | 0.9591 |
-| 3 | 0.0447 | 0.9900 | 0.0695 | 0.9833 |
-| 4 | 0.0076 | 0.9980 | 0.0161 | 1.0000 |
-| 5 | 0.0018 | 1.0000 | 0.0307 | 0.9835 |
+| 指标 | 结果 |
+| --- | ---: |
+| 最佳验证宏平均 F1 | 1.000 |
+| 测试准确率 | 0.958333 |
+| 测试宏平均 F1 | 0.957685 |
+| 投诉召回率 | 1.000 |
+| 投诉召回率门槛 | 0.700，PASS |
+| 模型版本 | `20260828T150307Z` |
 
-loss 总体下降，说明模型在当前数据上逐步减少错误。第 4 轮的验证宏平均 F1 达到最佳值 1.000；第 5 轮的验证 loss 和 F1 有所回退，因此最终保存的是第 4 轮模型，不是最后一轮。
-
-## 测试结果怎样计算
-
-测试集共 120 条：
-
-- 115 条预测正确；
-- 5 条预测错误；
-- `115 ÷ 120 = 0.95833`，所以准确率显示为 0.958，约 95.8%。
-
-每个类别有 30 条测试数据，整体准确率每错一条变化约 0.83 个百分点。这比原来每类 6 条稳定，但规模仍很小，且全部为合成语句。
-
-### 每类指标
-
-| 类别 | Precision | Recall | F1 | Support |
-| --- | ---: | ---: | ---: | ---: |
-| positive | 1.000 | 0.867 | 0.929 | 30 |
-| negative | 0.935 | 0.967 | 0.951 | 30 |
-| neutral | 0.938 | 1.000 | 0.968 | 30 |
-| complaint | 0.968 | 1.000 | 0.984 | 30 |
-
-正面类的 30 条中有 4 条被误判，是当前最难的类别。负面类有 1 条被误判为中性。中性和投诉的 30 条真实样本都被找回，但它们各自接收了其他类别的一条错误预测，所以精确率低于 1.000。
-
-### 混淆矩阵
-
-| 真实类别 \ 预测类别 | positive | negative | neutral | complaint |
-| --- | ---: | ---: | ---: | ---: |
-| positive | 26 | 2 | 1 | 1 |
-| negative | 0 | 29 | 1 | 0 |
-| neutral | 0 | 0 | 30 | 0 |
-| complaint | 0 | 0 | 0 | 30 |
-
-五条错误是：
+测试混淆矩阵固定顺序为 positive、negative、neutral、complaint：
 
 ```text
-平板电脑手写延迟很低，记笔记非常顺手：positive -> negative
-防水背包遇到大雨也没有打湿里面的电脑：positive -> negative
-客服清楚说明了保修到期日期，还教了保养方法：positive -> complaint
-税号修正后电子发票立即重新开好了：positive -> neutral
-保修到期提醒比实际日期晚了两个月：negative -> neutral
+[[26, 2, 1, 1],
+ [0, 29, 1, 0],
+ [0, 0, 30, 0],
+ [0, 0, 0, 30]]
 ```
 
-这些错误显示模型仍会过度关注“延迟”“打湿”“客服”“发票”和“保修”等局部词语，没有总是正确理解否定、已解决状态和是否提出介入要求。真实业务必须继续做错误分析，而不能只看总准确率。
-
-## 已验证的本地请求
-
-输入：
-
-```json
-{"text": "客服一直不处理退款"}
-```
-
-模型实际输出：
+CLI 和两个 API 容器对“客服一直不处理退款”均返回：
 
 ```json
 {
   "label": "complaint",
   "confidence": 0.998949,
-  "model_version": "20260828T123504Z"
+  "model_version": "20260828T150307Z"
 }
 ```
 
-该结果说明模型在四个候选类别中最倾向投诉。`0.998949` 是模型内部 softmax 相对分数，不应直接解释为经过现实统计证明的 99.8949% 正确率。
+## 发布镜像
+
+本地发布镜像标签为 `songleo/comment-classification-e2e:0.1.0`，本地镜像大小约 561 MB，构建时的本地 manifest list 摘要为：
+
+```text
+sha256:9e432158ddeea48b3ec0ec5c559053dc7891f1cc8bdf12f5d70485f7c1494e1a
+```
+
+该值是本地 BuildKit 输出，不是 Docker Hub 远端 digest。远端推送成功后，必须用 Docker Hub 返回的 digest 更新本节和 `deploy/kubernetes.yaml`。
+
+## 复现命令
+
+```powershell
+docker compose build
+docker compose run --rm -e HF_ENDPOINT=https://hf-mirror.com e2e
+docker compose up -d api
+docker compose ps
+docker compose down
+docker build -f Dockerfile.release -t songleo/comment-classification-e2e:0.1.0 .
+```
+
+只验证发布镜像时，可以按 [README](../README.md) 直接拉取 Docker Hub 镜像；在当前远端推送完成前，该路径仍不可用。
 
 ## 结论边界
 
-本次结果足以证明本机端到端工程流程可运行，但不能证明生产效果：
-
-- 测试数据只有 120 条；
-- 投诉测试数据只有 30 条；
-- 数据是人工合成，不代表真实用户表达分布；
-- 没有覆盖方言、拼写错误、反讽、超长文本和新业务词语；
-- 没有做概率校准、压力测试或生产监控。
-
-更完整的参数和流程解释见 `docs/BEGINNER_GUIDE.md`。
-
-## 复现方式
-
-先按项目根目录 [README.md](../README.md) 完成克隆和依赖安装。在仓库根目录执行
-`scripts/run-e2e.ps1`，可以重新运行测试、数据校验、训练、评估和命令行推理；执行
-`scripts/start-local-api.ps1`，可以把保存后的模型服务启动在
-`http://127.0.0.1:8000`。重新训练生成的模型版本时间戳会变化，指标也可能因运行环境而有
-细微差异，应以当次生成的 `artifacts/reports/` 为准。
+本次 PASS 只证明当前 Docker CPU 链路、合成数据、模型训练、评估、推理和本地 API 闭环。它不能证明真实业务准确率，也不能替代 Docker Hub 推送、Kubernetes、TLS、认证、容量、监控、漏洞扫描、签名或回滚验收。

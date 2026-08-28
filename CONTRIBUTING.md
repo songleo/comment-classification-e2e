@@ -1,71 +1,56 @@
 # 贡献指南
 
-感谢你改进这个中文评论分类端到端示例。项目优先接受能够保持流程可复现、适合公开分享，
-并且不会夸大验证结论的贡献。
+本项目只接受可通过 Docker 复现的交付流程。贡献者不需要在宿主机安装 Python，文档、测试、训练、评估和 API 验证均以容器命令为准。
 
 ## 开始开发
 
-1. Fork 本仓库，或在获得写入权限后创建功能分支。
-2. 克隆你的仓库并进入仓库根目录：
-
-   ```powershell
-   git clone https://github.com/<your-account>/comment-classification-e2e.git
-   Set-Location comment-classification-e2e
-   ```
-
-3. 创建虚拟环境并安装开发依赖：
-
-   ```powershell
-   python -m venv .venv
-   $python = (Resolve-Path '.\.venv\Scripts\python.exe').Path
-   & $python -m pip install --upgrade pip
-   & $python -m pip install -e ".[dev]"
-   ```
-
-## 提交前检查
-
-从仓库根目录运行：
-
 ```powershell
-$python = (Resolve-Path '.\.venv\Scripts\python.exe').Path
-& $python -m ruff check .
-& $python -m pytest
-& $python -m comment_classifier.data_validation
+git clone https://github.com/<your-account>/comment-classification-e2e.git
+Set-Location comment-classification-e2e
+docker compose build
 ```
 
-修改训练、评估或推理逻辑时，还应完成：
+## 提交前验证
+
+每次提交都必须从仓库根目录运行：
 
 ```powershell
-& $python -m comment_classifier.train
-& $python -m comment_classifier.evaluate
-& $python -m comment_classifier.predict --text "客服一直不处理退款"
+docker compose run --rm e2e
 ```
 
-## 数据和模型要求
+修改 API、容器或部署文件时，还必须启动服务并检查容器健康状态：
 
-- 标签必须保持为 `positive`、`negative`、`neutral` 和 `complaint`，除非先讨论并同步修改完整流程。
+```powershell
+docker compose up -d api
+docker compose ps
+docker compose logs --no-color api
+docker compose down
+```
+
+修改发布镜像时，必须在训练产物已经生成后验证构建：
+
+```powershell
+docker build -f Dockerfile.release -t comment-classifier:review .
+```
+
+## 数据与模型要求
+
+- 标签必须保持为 `positive`、`negative`、`neutral` 和 `complaint`，除非先同步修改完整流程与验收标准。
 - 不要提交个人信息、客户数据或来源不明的数据。
-- 不要提交 `.venv/`、基础模型缓存、`artifacts/model/` 或本地生成的评估产物。
-- 新增数据时必须保持训练集、验证集和测试集严格隔离。
-- 训练与服务必须使用同一训练产物中保存的 tokenizer。
+- 不要提交基础模型缓存、训练模型或本地评估产物。
+- 新增数据时必须保持训练集、验证集和测试集严格、确定性隔离。
+- 训练和服务必须使用同一训练产物中保存的 tokenizer。
+- 直接依赖版本、Python 基础镜像和基础模型 revision 的改变必须记录到 `docs/DECISIONS.md`。
 
 ## 文档要求
 
-- 一般说明优先使用中文，代码、接口字段和必须保持原样的技术名称除外。
-- 不要写入本机用户名、盘符、工作区绝对路径、访问令牌或其他个人环境信息。
-- 操作步骤应从仓库根目录出发，使用相对路径，并标明已经验证的平台和未验证边界。
-- 不要把合成小数据集的结果描述成生产准确率或 Kubernetes 验收结果。
+- 所有用户运行示例必须以 `docker`、`docker compose` 或 Kubernetes 容器部署命令开始，不提供宿主机 Python 运行步骤。
+- 公开文档不得写入用户名、盘符、工作区绝对路径、访问令牌或私有仓库地址。
+- 已验证和未验证内容必须分开说明；Docker 本地通过不能写成 Kubernetes 或生产验收通过。
+- Kubernetes 变化必须同步更新 `docs/KUBERNETES.md` 和 `deploy/kubernetes.yaml`。
 
-## Pull Request 建议
+## Pull Request 说明
 
-请在 Pull Request 中说明：
+Pull Request 应列出修改范围、实际执行的 Docker 验证命令、镜像标签或摘要、尚未验证的阶段以及已知限制。
 
-- 修改目的和范围；
-- 执行过的验证命令及结果；
-- 是否改变数据、模型配置、接口或部署方式；
-- 尚未验证的内容和已知限制。
-
-## 贡献许可
-
-除非另有明确说明，提交到本项目并被接受的贡献将按照项目根目录中的
-[MIT License](LICENSE) 发布。提交者应确保自己有权提供相关代码、文档和数据。
+提交到本项目并被接受的代码、文档和合成数据按项目根目录的 [MIT License](LICENSE) 发布。

@@ -1,0 +1,27 @@
+ARG BUILD_IMAGE=comment-classifier-dev:0.1.0
+ARG PYTHON_IMAGE=docker.m.daocloud.io/library/python:3.13.15-slim
+
+FROM ${BUILD_IMAGE} AS development
+FROM ${PYTHON_IMAGE}
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    MODEL_DIR=/app/artifacts/model
+
+WORKDIR /app
+
+COPY --from=development /usr/local /usr/local
+COPY --from=development /app/src ./src
+COPY pyproject.toml README.md ./
+RUN python -m pip uninstall --yes pytest ruff httpx
+
+COPY artifacts/model ./artifacts/model
+RUN test -f ./artifacts/model/training_metadata.json \
+    && test -f ./artifacts/model/config.json \
+    && test -f ./artifacts/model/model.safetensors
+
+EXPOSE 8000
+USER 65532:65532
+HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=12 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+CMD ["uvicorn", "comment_classifier.api:app", "--host", "0.0.0.0", "--port", "8000"]
