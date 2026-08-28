@@ -23,7 +23,9 @@
 - API 加载训练时保存的同一套 tokenizer 和模型。
 - 其他应用可以调用 `/health` 和 `/predict` 接口。
 
-示例数据是有意控制规模的合成数据。它用于证明完整工程流程可以运行，不能代表生产环境中的业务准确率。
+示例数据是有意控制规模的合成数据：训练集 500 条、验证集 120 条、
+测试集 120 条，每份数据的四个类别数量均衡。它用于证明完整工程流程可以运行，
+不能代表生产环境中的业务准确率。
 
 ## 第一次阅读建议
 
@@ -62,11 +64,20 @@
 | Git | 当前受支持的 Git for Windows | 克隆仓库和管理代码版本 |
 | Python | 64 位 CPython 3.11、3.12 或 3.13 | 创建项目虚拟环境；不要把 Microsoft Store 的执行别名当成已安装 Python |
 | PowerShell | Windows PowerShell 5.1 或 PowerShell 7 | 执行本文的 PowerShell 命令和项目脚本 |
-| 网络 | 第一次安装依赖和下载基础模型时可访问 Python、PyPI 和 Hugging Face 资源 | 下载依赖及固定版本的 `hfl/rbt3`；缓存完成后可离线重复运行 |
+| 网络 | 第一次安装依赖和第一次训练时可访问 Python、PyPI 和 Hugging Face 资源 | 安装依赖；训练程序首次加载时自动下载固定版本的 `hfl/rbt3`，缓存完成后可离线重复运行 |
 | 磁盘和内存 | 建议至少保留 4 GB 磁盘空间、2 GB 内存 | 当前虚拟环境实测约 1.73 GiB，还需要模型缓存、训练产物和临时空间 |
 
-CUDA 和独立显卡不是必需条件，本项目可以使用 CPU 完成训练。Docker 也不是本地
-Python 验证的必需条件，只有测试容器部署路径时才需要安装。
+训练和推理都会自动检测 CUDA：`torch.cuda.is_available()` 为真时使用 NVIDIA GPU，
+否则回退到 CPU，不需要修改项目代码。当前参考验证环境安装的是 CPU 版
+`torch 2.8.0+cpu`，所以本次实测使用 CPU；这只说明当前环境不能使用 CUDA，不代表
+项目不支持 GPU。要使用 GPU，需要另行准备兼容的 NVIDIA 显卡、驱动和 CUDA 版 PyTorch。
+
+第一次执行训练时，程序会根据 `configs/train.json` 自动从 Hugging Face 下载固定版本的
+`hfl/rbt3` tokenizer 和基础模型，并写入 Hugging Face 本地缓存。训练完成后，微调模型和
+同一套 tokenizer 会保存到 `artifacts/model/`；命令行推理和 API 只从这个目录加载本地产物，
+不会重新下载基础模型。如果基础模型尚未缓存，首次训练必须能够访问相应模型资源。
+
+Docker 不是本地 Python 验证的必需条件，只有测试容器部署路径时才需要安装。
 
 ### 先确认系统 Python 可用
 
