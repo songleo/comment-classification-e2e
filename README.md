@@ -41,17 +41,62 @@
 
 ## 在 Windows PowerShell 中运行完整流程
 
+下面的命令必须在 **Windows PowerShell** 中执行。如果当前提示符类似
+`C:\Users\lison>`，说明打开的是 CMD，可以先输入 `powershell` 并按回车。
+PowerShell 的提示符通常以 `PS` 开头。
+
+### 第 1 步：进入项目目录
+
 ```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-python -m pytest
-python -m comment_classifier.data_validation
-python -m comment_classifier.train
-python -m comment_classifier.evaluate
-python -m comment_classifier.predict --text "客服一直不处理退款"
-uvicorn comment_classifier.api:app --host 127.0.0.1 --port 8000
+Set-Location 'D:\chatgpt_project\comment-classification-e2e'
+```
+
+如果项目放在其他位置，请把上面的路径替换成实际路径。不要在
+`C:\Users\lison` 等项目外目录创建 `.venv`。
+
+### 第 2 步：使用或创建虚拟环境
+
+先检查项目中是否已经存在虚拟环境：
+
+```powershell
+Test-Path '.\.venv\Scripts\python.exe'
+```
+
+如果返回 `True`，直接复用它：
+
+```powershell
+$python = (Resolve-Path '.\.venv\Scripts\python.exe').Path
+& $python --version
+```
+
+如果返回 `False`，先确认系统 Python 是否可用：
+
+```powershell
+python --version
+```
+
+应显示 Python 3.11、3.12 或 3.13。然后创建虚拟环境：
+
+```powershell
+python -m venv .venv
+$python = (Resolve-Path '.\.venv\Scripts\python.exe').Path
+```
+
+如果提示 `python` 不是命令，需要先安装 Python 3.11–3.13，并在安装程序中勾选
+`Add python.exe to PATH`，安装后关闭并重新打开 PowerShell。`py -3.12` 只有在
+`py --version` 能成功运行时才可以作为替代命令，不能假定所有 Windows 都有 `py.exe`。
+
+后面的命令直接调用虚拟环境中的 Python，不需要执行激活脚本：
+
+```powershell
+& $python -m pip install --upgrade pip
+& $python -m pip install -e ".[dev]"
+& $python -m pytest
+& $python -m comment_classifier.data_validation
+& $python -m comment_classifier.train
+& $python -m comment_classifier.evaluate
+& $python -m comment_classifier.predict --text "客服一直不处理退款"
+& $python -m uvicorn comment_classifier.api:app --host 127.0.0.1 --port 8000
 ```
 
 首次完成环境初始化后，可以用下面的命令重复执行从测试、训练到评估的完整流程：
