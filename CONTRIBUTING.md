@@ -1,36 +1,42 @@
 # 贡献指南
 
-本项目只接受可通过 Docker 复现的交付流程。贡献者不需要在宿主机安装 Python，文档、测试、训练、评估和 API 验证均以容器命令为准。
+本项目只接受可通过标准 Docker CLI 复现的交付流程。取得源码并进入项目根目录后，贡献者只需要 Docker，不需要宿主机 Python、curl 或特定终端。
 
-## 开始开发
+## 构建开发镜像
 
-```powershell
-git clone https://github.com/<your-account>/comment-classification-e2e.git
-Set-Location comment-classification-e2e
-docker compose build
+```console
+docker build --tag comment-classifier-dev:0.1.0 .
 ```
 
 ## 提交前验证
 
-每次提交都必须从仓库根目录运行：
+Docker 命名卷让模型、报告和基础模型缓存独立于宿主机路径与操作系统：
 
-```powershell
-docker compose run --rm e2e
+```console
+docker volume create comment-classifier-artifacts
+docker volume create comment-classifier-huggingface-cache
+docker run --rm --name comment-classifier-e2e --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts --mount type=volume,source=comment-classifier-huggingface-cache,target=/cache/huggingface --env HF_ENDPOINT=https://hf-mirror.com comment-classifier-dev:0.1.0 /bin/sh /app/scripts/run-e2e.sh
 ```
 
-修改 API、容器或部署文件时，还必须启动服务并检查容器健康状态：
+修改 API、容器或部署文件时，还必须直接启动容器并检查健康状态、日志和接口：
 
-```powershell
-docker compose up -d api
-docker compose ps
-docker compose logs --no-color api
-docker compose down
+```console
+docker run --detach --name comment-classifier-api --publish 8000:8000 --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts,readonly comment-classifier-dev:0.1.0
+docker inspect --format "{{.State.Health.Status}}" comment-classifier-api
+docker logs comment-classifier-api
+docker run --rm --network container:comment-classifier-api comment-classifier-dev:0.1.0 python -c "import httpx; print(httpx.get('http://127.0.0.1:8000/health').json())"
+docker stop comment-classifier-api
+docker rm comment-classifier-api
 ```
 
-修改发布镜像时，必须在训练产物已经生成后验证构建：
+修改发布镜像时，必须先从已验证的 Docker 卷导出模型，再验证构建和容器内推理：
 
-```powershell
-docker build -f Dockerfile.release -t comment-classifier:review .
+```console
+docker create --name comment-classifier-model-export --mount type=volume,source=comment-classifier-artifacts,target=/source comment-classifier-dev:0.1.0
+docker cp comment-classifier-model-export:/source/model/. ./artifacts/model
+docker rm comment-classifier-model-export
+docker build --file Dockerfile.release --tag comment-classifier:review .
+docker run --rm comment-classifier:review python -c "from comment_classifier.runtime import Predictor; print(Predictor().predict('客服一直不处理退款'))"
 ```
 
 ## 数据与模型要求
@@ -44,8 +50,9 @@ docker build -f Dockerfile.release -t comment-classifier:review .
 
 ## 文档要求
 
-- 所有用户运行示例必须以 `docker`、`docker compose` 或 Kubernetes 容器部署命令开始，不提供宿主机 Python 运行步骤。
-- 公开文档不得写入用户名、盘符、工作区绝对路径、访问令牌或私有仓库地址。
+- 用户运行示例只能使用标准、单行 Docker CLI 或 Kubernetes 命令。
+- 不得假设用户的操作系统、终端、宿主机 Python、curl 或绝对路径。
+- 本地步骤只依赖 Docker Engine 或 Docker Desktop，不依赖额外编排工具。
 - 已验证和未验证内容必须分开说明；Docker 本地通过不能写成 Kubernetes 或生产验收通过。
 - Kubernetes 变化必须同步更新 `docs/KUBERNETES.md` 和 `deploy/kubernetes.yaml`。
 

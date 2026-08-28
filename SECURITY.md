@@ -8,7 +8,7 @@
 
 ## 支持范围
 
-本项目采用 Docker-only 交付，当前支持范围包括仓库中的 Dockerfile、Compose 配置、发布镜像构建方式、API 代码和 Kubernetes 示例清单。
+本项目采用 Docker-only 交付，当前支持范围包括仓库中的开发 Dockerfile、发布 Dockerfile、直接 Docker CLI 运行方式、API 代码和 Kubernetes 示例清单。本地验证不需要额外的容器编排工具。
 
 示例清单不自动提供生产级 TLS、认证、授权、网络策略、镜像签名、漏洞扫描、秘密管理、容量规划或监控告警。部署方必须在自己的镜像仓库与集群中单独验证这些能力；没有证据时状态为 `UNKNOWN`。
 

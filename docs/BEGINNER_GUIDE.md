@@ -1,246 +1,242 @@
 # 零基础 Docker 教程
 
-这份教程只讲容器方式。宿主机负责运行 Docker，Python、PyTorch、Transformers、FastAPI、测试工具和训练代码都在镜像内运行。
+这份教程不假设操作系统或终端。用户取得项目源码、进入项目根目录并安装可用的 Docker Engine 或 Docker Desktop 后，即可逐条执行所有步骤。Python、PyTorch、测试、训练、API 调用和模型导出都由 Docker 容器完成。
 
-## 1. 先理解两个镜像
+## 1. 确认 Docker
 
-项目把开发训练与最终交付分开：
-
-| 镜像 | 构建文件 | 包含内容 | 用途 |
-| --- | --- | --- | --- |
-| 开发与训练镜像 | `Dockerfile` | 源码、数据、配置、测试和开发依赖 | 测试、训练、评估、推理、本地 API |
-| 发布镜像 | `Dockerfile.release` | API 运行依赖和已经训练好的模型 | 镜像仓库、Kubernetes、交付 |
-
-两者都固定使用 Python 3.13.15 slim 镜像。宿主机 Python 的版本、包和配置不会进入容器，也不会影响训练结果。Dockerfile 默认通过 DaoCloud 拉取基础镜像，并从阿里云 PyTorch CPU 镜像安装 `torch 2.8.0+cpu`，避免把未使用的 CUDA 运行时打入镜像。
-
-## 2. 两种使用方式
-
-需要审查源码、重新训练或生成自己的模型时，使用 `docker compose build` 和 `docker compose run --rm e2e` 完成本地构建。
-
-Docker Hub 标签发布成功后，只验证已经发布的 API 时，可以直接拉取包含模型的发布镜像：
-
-```powershell
-docker pull songleo/comment-classification-e2e:0.1.0
-docker run -d --name comment-classifier -p 8000:8000 songleo/comment-classification-e2e:0.1.0
-docker inspect --format='{{json .State.Health}}' comment-classifier
+```console
+docker version
 ```
 
-Docker Hub 较慢时使用 DaoCloud 代理：
+如果该命令失败，应先修复 Docker 安装或启动状态。项目不要求宿主机 Python、curl 或额外的容器编排工具。
 
-```powershell
-docker pull docker.m.daocloud.io/songleo/comment-classification-e2e:0.1.0
-docker tag docker.m.daocloud.io/songleo/comment-classification-e2e:0.1.0 songleo/comment-classification-e2e:0.1.0
+## 2. 理解两个镜像
+
+| 镜像 | 构建文件 | 用途 |
+| --- | --- | --- |
+| `comment-classifier-dev:0.1.0` | `Dockerfile` | 测试、训练、评估、推理、本地 API |
+| `songleo/comment-classification-e2e:0.1.0` | `Dockerfile.release` | 独立 API、镜像仓库、Kubernetes |
+
+开发镜像不包含训练结果。训练结果先保存在 Docker 命名卷，再被复制进发布镜像。
+
+## 3. 构建开发镜像
+
+```console
+docker build --tag comment-classifier-dev:0.1.0 .
 ```
 
-直接拉取只验证已发布 API；后续章节的本地构建路径还会验证源码、数据和训练。
+构建成功后确认镜像存在：
 
-## 3. 数据如何流动
-
-完整流程如下：
-
-```text
-Docker 构建开发镜像
-        ↓
-容器校验 train / validation / test
-        ↓
-容器下载固定 revision 的 hfl/rbt3
-        ↓
-容器微调并选择验证集最佳模型
-        ↓
-模型和 tokenizer 写入 artifacts/model
-        ↓
-容器加载保存后的模型评估和推理
-        ↓
-Compose API 挂载同一个 artifacts/model
-        ↓
-Dockerfile.release 把同一个模型打入发布镜像
+```console
+docker image inspect comment-classifier-dev:0.1.0
 ```
 
-`artifacts/` 是绑定到容器的宿主机目录，因此临时训练容器退出后，模型和报告仍然存在。基础模型缓存位于 Docker 命名卷，避免每次重新下载。
+默认下载来源：
 
-## 4. 构建镜像
+- Python 基础镜像：DaoCloud Docker Hub 代理；
+- Python 包：阿里云 PyPI；
+- PyTorch CPU 轮子：阿里云 PyTorch wheels。
 
-在仓库根目录执行：
+需要临时改用官方源时：
 
-```powershell
-docker compose build
+```console
+docker build --tag comment-classifier-dev:0.1.0 --build-arg PYTHON_IMAGE=python:3.13.15-slim --build-arg PIP_INDEX_URL=https://pypi.org/simple --build-arg TORCH_FIND_LINKS=https://download.pytorch.org/whl/cpu .
 ```
 
-构建过程默认通过国内镜像安装 `pyproject.toml` 中锁定的直接依赖和 CPU 版 PyTorch。需要回到官方源时可以显式覆盖：
+## 4. 创建 Docker 命名卷
 
-```powershell
-docker compose build `
-  --build-arg PYTHON_IMAGE=python:3.13.15-slim `
-  --build-arg PIP_INDEX_URL=https://pypi.org/simple `
-  --build-arg TORCH_FIND_LINKS=https://download.pytorch.org/whl/cpu
+```console
+docker volume create comment-classifier-artifacts
+docker volume create comment-classifier-huggingface-cache
 ```
 
-镜像只改变下载来源，不改变 `torch==2.8.0`、`transformers==4.55.2` 等直接依赖版本。
+用途：
 
-## 5. 一条命令跑完整流程
+- `comment-classifier-artifacts`：保存训练模型、同一 tokenizer 和评估报告；
+- `comment-classifier-huggingface-cache`：保存基础模型下载缓存。
 
-```powershell
-docker compose run --rm e2e
+命名卷由 Docker 管理，不需要拼接宿主机路径，也不受操作系统路径格式影响。重复执行 create 不会清空已有内容。
+
+## 5. 跑完整流程
+
+```console
+docker run --rm --name comment-classifier-e2e --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts --mount type=volume,source=comment-classifier-huggingface-cache,target=/cache/huggingface --env HF_ENDPOINT=https://hf-mirror.com comment-classifier-dev:0.1.0 /bin/sh /app/scripts/run-e2e.sh
 ```
 
-容器内依次执行：
+该容器按顺序执行：
 
 1. Ruff 代码规范检查；
 2. Pytest 单元测试；
-3. 三个数据集的格式、标签数量和跨集合重复检查；
-4. 固定基础模型 revision 的真实微调；
+3. 训练、验证和测试数据校验；
+4. 固定基础模型 revision 的真实 CPU 微调；
 5. 独立测试集评估；
 6. 保存后模型的中文推理。
 
-`--rm` 表示命令结束后删除这次临时容器，不会删除镜像、`artifacts/` 或 Hugging Face 缓存卷。
+`--rm` 只删除本次临时容器，不删除开发镜像或两个命名卷。命令退出码为 `0` 才算通过。
 
-首次训练需要下载基础模型。官方端点较慢时，可以为本次容器指定镜像：
+## 6. 查看卷中生成物
 
-```powershell
-docker compose run --rm -e HF_ENDPOINT=https://hf-mirror.com e2e
+不需要宿主机文件工具，使用开发镜像查看：
+
+```console
+docker run --rm --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts,readonly comment-classifier-dev:0.1.0 python -c "from pathlib import Path; print('\n'.join(str(path) for path in sorted(Path('/app/artifacts').rglob('*')) if path.is_file()))"
 ```
 
-## 6. 分阶段观察
+主要内容：
 
-初学者可以逐步执行，每一步仍然只在容器中运行：
+| 容器内路径 | 内容 |
+| --- | --- |
+| `/app/artifacts/model/` | 模型、tokenizer、训练元数据 |
+| `/app/artifacts/reports/test_metrics.json` | 测试指标 |
+| `/app/artifacts/reports/test_predictions.csv` | 测试集逐条预测 |
+| `/app/artifacts/reports/test_report.md` | 人工可读报告 |
 
-```powershell
-docker compose run --rm e2e python -m pytest -q
-docker compose run --rm e2e python -m comment_classifier.data_validation
-docker compose run --rm e2e python -m comment_classifier.train
-docker compose run --rm e2e python -m comment_classifier.evaluate
-docker compose run --rm e2e python -m comment_classifier.predict --text "客服一直不处理退款"
+## 7. 单独重跑测试或推理
+
+单元测试：
+
+```console
+docker run --rm --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts comment-classifier-dev:0.1.0 python -m pytest -q
 ```
 
-训练命令生成 `artifacts/model/`。评估和推理命令只加载该目录，不重新选择 tokenizer 或基础模型。
+中文推理：
 
-## 7. 四个标签
-
-| 标签 | 判断重点 | 示例 |
-| --- | --- | --- |
-| `positive` | 明确满意、称赞或问题已妥善解决 | 物流很快，包装也很仔细 |
-| `negative` | 明确不满，但没有要求平台介入 | 更新后软件经常闪退 |
-| `neutral` | 客观描述，没有明显情绪或处理要求 | 今天收到商品，暂时还没使用 |
-| `complaint` | 要求退款、维权、升级或客服介入 | 客服一直不处理退款申请 |
-
-如果一句话既有负面情绪，又明确要求介入，应标记为 `complaint`。
-
-## 8. 训练参数
-
-`configs/train.json` 固定基础模型、revision、随机种子、最大长度、批大小、学习率、训练轮数和投诉召回率门槛。固定 revision 能避免上游模型仓库变化导致同一项目下载不同文件。
-
-训练每轮会输出 loss 和宏平均 F1。项目根据验证集宏平均 F1 保存最佳模型，不保证最后一轮就是最佳模型。
-
-## 9. 评估结果
-
-评估输出包括：
-
-- Accuracy：全部测试样本中预测正确的比例；
-- Macro F1：四个类别 F1 的等权平均；
-- Complaint recall：真实投诉中被识别出来的比例；
-- Confusion matrix：各真实标签被预测到哪个标签。
-
-投诉召回率门槛为 `0.70`。即使门槛通过，也只说明当前合成测试集通过，不能外推到真实生产数据。
-
-## 10. 启动和验证 API
-
-训练通过后启动：
-
-```powershell
-docker compose up -d api
-docker compose ps
+```console
+docker run --rm --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts,readonly comment-classifier-dev:0.1.0 python -m comment_classifier.predict --text "客服一直不处理退款"
 ```
 
-Compose 网络内的服务名是 `api`。使用一次性 curl 容器调用接口：
+这里的 Python 是容器内命令，不是宿主机命令。
 
-```powershell
-docker run --rm --network comment-classification-e2e_default curlimages/curl:8.10.1 -fsS http://api:8000/health
+## 8. 启动 API
 
-docker run --rm --network comment-classification-e2e_default curlimages/curl:8.10.1 `
-  -fsS -X POST http://api:8000/predict `
-  -H "Content-Type: application/json; charset=utf-8" `
-  --data-raw '{"text":"物流很快，商品也很好用"}'
+```console
+docker run --detach --name comment-classifier-api --publish 8000:8000 --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts,readonly comment-classifier-dev:0.1.0
 ```
 
-接口文档位于 `http://127.0.0.1:8000/docs`。停止服务：
+查询健康状态：
 
-```powershell
-docker compose down
+```console
+docker inspect --format "{{.State.Health.Status}}" comment-classifier-api
 ```
 
-## 11. 发布镜像
+刚启动时可能显示 `starting`。等待片刻后再次执行，预期结果为 `healthy`。如果没有变为健康：
 
-发布镜像不会在启动时训练。必须先确认端到端命令通过、开发镜像仍在本机且 `artifacts/model/` 完整，再构建。发布构建复用开发镜像中的运行环境，不会再次下载 PyTorch：
+```console
+docker logs comment-classifier-api
+```
 
-```powershell
-docker build -f Dockerfile.release -t songleo/comment-classification-e2e:0.1.0 .
-docker run -d --name comment-classifier-release -p 8000:8000 songleo/comment-classification-e2e:0.1.0
+## 9. 只用 Docker 调用 API
+
+验证容器共享 API 容器的网络，因此不依赖宿主机 curl 或特殊主机名。
+
+健康检查：
+
+```console
+docker run --rm --network container:comment-classifier-api comment-classifier-dev:0.1.0 python -c "import httpx; print(httpx.get('http://127.0.0.1:8000/health').json())"
+```
+
+中文预测：
+
+```console
+docker run --rm --network container:comment-classifier-api comment-classifier-dev:0.1.0 python -c "import httpx; print(httpx.post('http://127.0.0.1:8000/predict', json={'text':'客服一直不处理退款'}).json())"
+```
+
+如果需要人工查看 OpenAPI 页面，可访问 `http://127.0.0.1:8000/docs`。
+
+## 10. 停止 API
+
+```console
+docker stop comment-classifier-api
+docker rm comment-classifier-api
+```
+
+停止和删除容器不会删除开发镜像或命名卷。
+
+## 11. 导出模型并构建发布镜像
+
+发布构建需要仓库相对目录 `./artifacts/model`。用一个不启动的临时容器读取命名卷，并让 Docker 执行复制：
+
+```console
+docker create --name comment-classifier-model-export --mount type=volume,source=comment-classifier-artifacts,target=/source comment-classifier-dev:0.1.0
+docker cp comment-classifier-model-export:/source/model/. ./artifacts/model
+docker rm comment-classifier-model-export
+```
+
+构建发布镜像：
+
+```console
+docker build --file Dockerfile.release --tag songleo/comment-classification-e2e:0.1.0 .
+```
+
+独立启动，不挂载模型卷：
+
+```console
+docker run --detach --name comment-classifier-release --publish 8000:8000 songleo/comment-classification-e2e:0.1.0
+docker inspect --format "{{.State.Health.Status}}" comment-classifier-release
 docker logs comment-classifier-release
-```
-
-验证结束后：
-
-```powershell
+docker run --rm --network container:comment-classifier-release comment-classifier-dev:0.1.0 python -c "import httpx; print(httpx.post('http://127.0.0.1:8000/predict', json={'text':'客服一直不处理退款'}).json())"
 docker stop comment-classifier-release
 docker rm comment-classifier-release
 ```
 
-要发布到 Kubernetes，继续阅读 [Kubernetes 部署文档](KUBERNETES.md)。
+发布容器能够独立预测，说明模型与 tokenizer 已经打入镜像。
 
-## 12. 常见问题
+## 12. 直接拉取发布镜像
 
-### Docker 命令不存在
+远端标签发布成功后，可以跳过源码训练：
 
-先安装并启动 Docker Desktop 或 Docker Engine，再确认：
-
-```powershell
-docker version
-docker compose version
+```console
+docker pull songleo/comment-classification-e2e:0.1.0
+docker run --detach --name comment-classifier --publish 8000:8000 songleo/comment-classification-e2e:0.1.0
+docker inspect --format "{{.State.Health.Status}}" comment-classifier
 ```
 
-### 构建下载很慢
+Docker Hub 下载较慢时：
 
-项目默认使用国内镜像。若曾覆盖为官方源，可显式恢复国内镜像并重新构建：
-
-```powershell
-docker compose build --no-cache `
-  --build-arg PYTHON_IMAGE=docker.m.daocloud.io/library/python:3.13.15-slim `
-  --build-arg PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ `
-  --build-arg TORCH_FIND_LINKS=https://mirrors.aliyun.com/pytorch-wheels/cpu/
+```console
+docker pull docker.m.daocloud.io/songleo/comment-classification-e2e:0.1.0
+docker tag docker.m.daocloud.io/songleo/comment-classification-e2e:0.1.0 songleo/comment-classification-e2e:0.1.0
 ```
 
-### 基础模型下载失败
+远端镜像尚未发布时，使用前面的本地构建方式。
 
-先检查网络和证书，再按需要为单次训练容器设置 Hugging Face 端点：
+## 13. 常见问题
 
-```powershell
-docker compose run --rm -e HF_ENDPOINT=https://hf-mirror.com e2e
+### 容器名称已被占用
+
+查看项目相关容器：
+
+```console
+docker ps --all --filter name=comment-classifier
 ```
 
-### API 容器不健康
+确认旧测试容器不再需要后，按名称停止并删除。
 
-确认训练产物存在，然后查看容器状态与日志：
+### API 不健康
 
-```powershell
-docker compose ps
-docker compose logs --no-color api
-docker compose run --rm e2e python -m comment_classifier.predict --text "客服一直不处理退款"
+```console
+docker inspect --format "{{json .State.Health}}" comment-classifier-api
+docker logs comment-classifier-api
+docker run --rm --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts,readonly comment-classifier-dev:0.1.0 python -m comment_classifier.predict --text "客服一直不处理退款"
 ```
+
+### 下载很慢
+
+默认 Dockerfile 已配置国内基础镜像和 Python 包源，完整验证命令也配置了 `hf-mirror.com`。如果曾覆盖为官方源，重新使用第 3 节的默认构建命令。
 
 ### 磁盘空间不足
 
-先查看 Docker 占用：
-
-```powershell
+```console
 docker system df
 ```
 
-删除缓存卷会导致下次重新下载基础模型，因此只有确认不再需要缓存时才执行：
+只有明确不再需要模型和缓存时才删除卷：
 
-```powershell
-docker compose down -v
+```console
+docker volume rm comment-classifier-artifacts
+docker volume rm comment-classifier-huggingface-cache
 ```
 
-## 13. 能证明什么
+## 14. 验证边界
 
-Docker 端到端通过可以证明当前代码、数据、依赖、训练、评估、推理和 API 在该容器环境中闭环。它不能证明真实业务准确率，也不能自动证明镜像仓库推送、Kubernetes、TLS、权限、容量、监控或生产回滚已经通过。
+本地 Docker 端到端通过可以证明当前代码、数据、依赖、训练、评估、推理和 API 在该容器环境中闭环。它不能证明真实业务准确率，也不能自动证明镜像仓库推送、Kubernetes、TLS、权限、容量、监控或生产回滚已经通过。

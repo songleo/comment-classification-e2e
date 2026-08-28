@@ -22,7 +22,7 @@ COPY data ./data
 COPY tests ./tests
 COPY AGENTS.md CONTRIBUTING.md SECURITY.md ./
 COPY docs ./docs
-COPY scripts/run-e2e.sh ./scripts/run-e2e.sh
+COPY scripts ./scripts
 RUN python -m pip install --no-deps --editable . \
     && chmod 0755 ./scripts/run-e2e.sh
 

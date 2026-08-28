@@ -2,9 +2,9 @@
 
 ## Docker 是唯一交付方式
 
-项目不再把宿主机 Python 作为受支持路径。所有测试、训练、评估、推理和 API 操作都在容器中执行，避免宿主机 Python 版本、二进制扩展和虚拟环境残留造成不可复现问题。
+项目不把宿主机 Python 作为受支持路径。所有测试、训练、评估、推理和 API 操作都在容器中执行，避免宿主机 Python 版本、二进制扩展和虚拟环境残留造成不可复现问题。
 
-开发训练镜像与发布镜像分离：开发镜像包含数据、测试和训练工具；发布镜像只包含 API 运行依赖与已经验证的模型。Kubernetes 只部署发布镜像。
+本地流程只使用 Docker CLI，不依赖额外的容器编排工具。开发训练镜像包含数据、测试和训练工具；发布镜像只包含 API 运行依赖与已经验证的模型。Kubernetes 只部署发布镜像。
 
 ## Python 版本固定为 3.13.15
 
@@ -20,7 +20,7 @@
 
 ## 为什么选择 `hfl/rbt3`
 
-`hfl/rbt3` 是较小的中文 RoBERTa 模型，CPU 训练和推理成本低于大型 BERT，适合演示完整流程。项目在 `configs/train.json` 固定提交 revision，避免上游仓库变化导致重复训练下载不同模型文件。
+`hfl/rbt3` 是较小的中文 RoBERTa 模型，CPU 训练和推理成本低于大型 BERT，适合演示完整流程。项目在 `configs/train.json` 固定提交 revision，避免上游模型仓库变化导致重复训练下载不同模型文件。
 
 小模型和合成数据只用于工程闭环，不表示它是生产场景的最佳模型。生产选型仍需真实数据、延迟、容量、许可证和风险评估。
 
@@ -40,11 +40,13 @@
 
 ## 为什么模型与 tokenizer 一起保存
 
-训练把模型、tokenizer 和元数据一起写入 `artifacts/model/`。评估、CLI、Compose API 和发布镜像都读取这一目录，防止训练与服务使用不同的文本处理逻辑。
+训练把模型、tokenizer 和元数据一起写入 `artifacts/model/`。评估、CLI、开发 API 容器和发布镜像都读取这一目录，防止训练与服务使用不同的文本处理逻辑。
 
 ## 为什么模型不在开发镜像中
 
-训练产物通过 Compose 绑定目录持久化，开发镜像可以重复使用。端到端验证通过后，`Dockerfile.release` 从已验证的本地开发镜像复制 Python 运行环境、移除测试工具，并把模型复制到发布镜像，避免重复下载大型依赖，也避免 API 容器启动时训练或下载基础模型。
+`docker run` 将训练产物持久化到 Docker 命名卷 `comment-classifier-artifacts`，避免依赖宿主机路径格式。同一开发镜像可以重复使用。端到端验证通过后，通过临时 Docker 容器与 `docker cp` 把模型导出到仓库相对构建目录；`Dockerfile.release` 再从已验证的本地开发镜像复制 Python 运行环境、移除测试工具，并把模型复制到发布镜像。
+
+Hugging Face 基础模型缓存放在 Docker 命名卷 `comment-classifier-huggingface-cache` 中。删除临时容器不会删除模型卷或缓存卷。
 
 ## Kubernetes 边界
 
