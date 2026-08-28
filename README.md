@@ -148,8 +148,17 @@ PowerShell 激活脚本执行策略影响。
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/health
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/predict -ContentType 'application/json' -Body '{"text":"物流很快，商品也很好用"}'
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/predict `
+  -ContentType 'application/json; charset=utf-8' `
+  -Body '{"text":"物流很快，商品也很好用"}'
 ```
+
+`charset=utf-8` 不能省略：Windows PowerShell 5.1 发送不带字符集声明的中文
+JSON 字符串时可能使用错误编码，导致服务收到乱码并给出错误分类。PowerShell 7 通常不会
+复现这个问题，但这里保留显式声明，使同一条命令兼容两个版本。
 
 也可以使用 Chrome 打开接口文档：
 
