@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comment-classifier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comment-classifier
+  template:
+    metadata:
+      labels:
+        app: comment-classifier
+    spec:
+      containers:
+        - name: api
+          image: REPLACE_WITH_YOUR_REGISTRY/comment-classifier:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: comment-classifier
+spec:
+  selector:
+    app: comment-classifier
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

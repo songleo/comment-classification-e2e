@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.env
+.idea/
+.vscode/
+artifacts/model/
+artifacts/base-model-cache/
+artifacts/reports/*.csv
+artifacts/reports/*.json
+artifacts/reports/*.md
+!artifacts/reports/.gitkeep

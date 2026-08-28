@@ -1,0 +1,12 @@
+{
+  "base_model": "hfl/rbt3",
+  "model_revision": "0412ffdc25bf738c556d523f8553bd69efe6405b",
+  "max_length": 96,
+  "batch_size": 8,
+  "epochs": 5,
+  "learning_rate": 0.00003,
+  "weight_decay": 0.01,
+  "seed": 42,
+  "early_stopping_patience": 2,
+  "min_complaint_recall": 0.70
+}

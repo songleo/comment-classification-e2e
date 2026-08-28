@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "comment-classification-e2e"
+version = "0.1.0"
+description = "A runnable Chinese comment classification lifecycle example"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "fastapi==0.116.1",
+  "numpy==2.3.2",
+  "pydantic==2.11.7",
+  "scikit-learn==1.7.1",
+  "torch==2.8.0",
+  "transformers==4.55.2",
+  "uvicorn[standard]==0.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx==0.28.1",
+  "pytest==8.4.1",
+  "ruff==0.12.10",
+]
+
+[project.scripts]
+comment-train = "comment_classifier.train:main"
+comment-evaluate = "comment_classifier.evaluate:main"
+comment-predict = "comment_classifier.predict:main"
+comment-api = "comment_classifier.api:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/comment_classifier"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
