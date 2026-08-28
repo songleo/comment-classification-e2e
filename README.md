@@ -32,18 +32,45 @@
 
 如果一条评论既包含普通负面评价，又明确要求介入处理，应标记为 `complaint`。
 
-## 运行条件
+## 开始前必须准备的 Windows 环境
 
-- Python 3.11–3.13
-- 第一次训练时需要联网下载固定版本的基础模型
-- 大约 1 GB 可用磁盘空间和 2 GB 内存；CUDA 可选
-- 只有使用容器部署路径时才需要 Docker
+不要直接从训练命令开始。必须先完成下面的环境准备，否则会遇到
+“找不到 `python`”“没有 `.venv`”或“缺少依赖”等错误。
+
+| 必备项 | 要求 | 用途 |
+| --- | --- | --- |
+| Windows | Windows 10 或 Windows 11，64 位 | 本文命令按本地 Windows 编写 |
+| Python | 64 位 CPython 3.11、3.12 或 3.13 | 创建项目虚拟环境；不要把 Microsoft Store 的执行别名当成已安装 Python |
+| PowerShell | Windows PowerShell 5.1 或 PowerShell 7 | 执行本文的 PowerShell 命令和项目脚本 |
+| 网络 | 第一次安装依赖和下载基础模型时可访问 Python、PyPI 和 Hugging Face 资源 | 下载依赖及固定版本的 `hfl/rbt3`；缓存完成后可离线重复运行 |
+| 磁盘和内存 | 建议至少保留 4 GB 磁盘空间、2 GB 内存 | 当前虚拟环境实测约 1.73 GiB，还需要模型缓存、训练产物和临时空间 |
+
+CUDA 和独立显卡不是必需条件，本项目可以使用 CPU 完成训练。Docker 也不是本地
+Python 验证的必需条件，只有测试容器部署路径时才需要安装。
+
+### 先确认系统 Python 可用
+
+从 [Python 官方 Windows 下载页](https://www.python.org/downloads/windows/) 获取受支持的
+64 位安装程序，安装时应启用 `Add python.exe to PATH`。安装结束后，必须关闭安装前已经
+打开的 CMD/PowerShell，再打开一个新的 PowerShell，然后执行：
+
+```powershell
+python --version
+python -m pip --version
+```
+
+第一条命令必须显示 Python 3.11、3.12 或 3.13，第二条必须显示 pip 的版本和安装路径。
+如果看到 `Python was not found`、跳转 Microsoft Store，或者提示 `python` 不是命令，说明
+系统 Python 还没有准备好。请先安装受支持的 Python，并重新打开终端，不要继续执行训练命令。
+
+`py --version` 可以作为补充检查，但 `py.exe` 不是所有 Windows 都有，因此本文不把它作为
+唯一入口。
 
 ## 在 Windows PowerShell 中运行完整流程
 
-下面的命令必须在 **Windows PowerShell** 中执行。如果当前提示符类似
-`C:\Users\lison>`，说明打开的是 CMD，可以先输入 `powershell` 并按回车。
-PowerShell 的提示符通常以 `PS` 开头。
+只有上面的系统 Python 检查通过后，才执行本节。下面的命令必须在
+**Windows PowerShell** 中执行。如果当前提示符类似 `C:\Users\lison>`，说明打开的是
+CMD，可以先输入 `powershell` 并按回车。PowerShell 的提示符通常以 `PS` 开头。
 
 ### 第 1 步：进入项目目录
 
@@ -82,15 +109,16 @@ python -m venv .venv
 $python = (Resolve-Path '.\.venv\Scripts\python.exe').Path
 ```
 
-如果提示 `python` 不是命令，需要先安装 Python 3.11–3.13，并在安装程序中勾选
-`Add python.exe to PATH`，安装后关闭并重新打开 PowerShell。`py -3.12` 只有在
-`py --version` 能成功运行时才可以作为替代命令，不能假定所有 Windows 都有 `py.exe`。
+如果提示 `python` 不是命令，请返回“开始前必须准备的 Windows 环境”，先完成 Python
+安装和新终端检查。`py -3.12` 只有在 `py --version` 能成功运行时才可以作为替代命令，
+不能假定所有 Windows 都有 `py.exe`。
 
 后面的命令直接调用虚拟环境中的 Python，不需要执行激活脚本：
 
 ```powershell
 & $python -m pip install --upgrade pip
 & $python -m pip install -e ".[dev]"
+& $python -m pip check
 & $python -m pytest
 & $python -m comment_classifier.data_validation
 & $python -m comment_classifier.train
@@ -98,6 +126,11 @@ $python = (Resolve-Path '.\.venv\Scripts\python.exe').Path
 & $python -m comment_classifier.predict --text "客服一直不处理退款"
 & $python -m uvicorn comment_classifier.api:app --host 127.0.0.1 --port 8000
 ```
+
+其中前两条 `pip install` 命令是在准备项目依赖，`pip check` 应输出
+`No broken requirements found.`。只有这些命令成功后，测试、训练、评估、推理和 API 命令
+才具备运行条件。本文直接调用 `.venv\Scripts\python.exe`，不要求激活虚拟环境，也不受
+PowerShell 激活脚本执行策略影响。
 
 首次完成环境初始化后，可以用下面的命令重复执行从测试、训练到评估的完整流程：
 

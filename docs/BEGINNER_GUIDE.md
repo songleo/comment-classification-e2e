@@ -9,6 +9,42 @@
 - 为什么模型会以 93.1% 的高置信度答错？
 - 模型文件怎样变成可以被其他系统调用的接口？
 
+## 开始学习前：先把运行环境准备好
+
+后面的训练、评估和推理不是只靠项目源代码就能运行。Windows 电脑必须先具备：
+
+1. 64 位 Python 3.11、3.12 或 3.13；
+2. Windows PowerShell；
+3. 项目目录中的 `.venv` 虚拟环境；
+4. 已安装到 `.venv` 中的项目依赖；
+5. 第一次安装依赖和下载基础模型时可用的网络；
+6. 建议至少 4 GB 可用磁盘空间和 2 GB 内存。
+
+准备顺序不能颠倒：
+
+```text
+安装系统 Python
+        ↓
+关闭旧终端并打开新的 PowerShell
+        ↓
+确认 python 和 pip 可以运行
+        ↓
+进入项目目录并创建 .venv
+        ↓
+在 .venv 中安装项目依赖
+        ↓
+测试 → 数据校验 → 训练 → 评估 → 推理 → 启动 API
+```
+
+如果 `python --version` 显示 `Python was not found` 或打开 Microsoft Store，这不代表
+Python 已经安装。应从 Python 官方 Windows 下载页安装受支持的 CPython、启用
+`Add python.exe to PATH`，再关闭并重新打开终端。完整的下载链接、可复制命令和检查标准见
+项目根目录的 `README.md`。
+
+项目命令会明确调用 `.venv\Scripts\python.exe`，因此不需要“激活”虚拟环境。这样可以
+避免 PowerShell 执行策略阻止 `Activate.ps1`，也能确保训练、评估、推理和 API 始终使用
+同一套 Python 依赖。
+
 ## 1. 先看完整流程
 
 可以把整个项目理解为“学生学习并参加考试”：
