@@ -6,11 +6,14 @@
 
 宿主机 Python、curl、绝对路径和额外容器编排工具不属于交付前提。模型、报告和基础模型缓存使用 Docker 命名卷保存。Docker Hub 推送和 Kubernetes 是独立阶段，状态单独记录。
 
+维护者随后在提交 `3e5c48b62a0eed80296fc2af291413d2374d917a` 上，按 [README](../README.md)“方式 A”的命令顺序手工完成开发镜像构建、两个命名卷创建、完整 E2E、API 健康检查、容器内 `/health` 与 `/predict` 调用以及 API 容器清理，并确认全部通过。
+
 ## 容器环境
 
 | 项目 | 实测值 |
 | --- | --- |
 | Docker Engine | 29.6.2，Linux amd64 |
+| Docker Desktop | 4.85.0 |
 | 基础镜像来源 | DaoCloud Docker Hub 代理 |
 | 基础镜像 | Python 3.13.15 slim |
 | 基础镜像摘要 | `sha256:7ce4b6dfe35e55397b7cda544f8a13f191b7ae28dc5aad71fe664dbc9bc2623f` |
@@ -29,6 +32,7 @@
 | 阶段 | 状态 | 实际证据 |
 | --- | --- | --- |
 | 开发镜像直接构建 | PASS | `docker build` 成功，Python 3.13.15 与 CPU-only PyTorch 可用 |
+| 维护者手工复核 | PASS | 在提交 `3e5c48b` 上逐条执行 README 方式 A 的本地构建、E2E、API 验证和清理命令，确认全部通过 |
 | Ruff | PASS | `All checks passed!` |
 | Pytest | PASS | `7 passed` |
 | 数据校验 | PASS | train 500、validation 120、test 120；四类均衡且跨集合无重复 |
