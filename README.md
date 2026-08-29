@@ -63,7 +63,19 @@ docker run --rm --name comment-classifier-e2e --mount type=volume,source=comment
 
 该容器依次执行 Ruff、Pytest、三个数据集校验、真实 CPU 训练、独立测试集评估和中文推理。退出码为 `0` 才表示通过。
 
-### 5. 启动 API
+### 5. 查找训练完成的模型
+
+训练结果保存在 Docker 命名卷 `comment-classifier-artifacts` 中，不会因为端到端容器使用了 `--rm` 而被删除。模型在挂载该卷的容器内对应 `/app/artifacts/model/`。
+
+只列出模型、tokenizer 和训练元数据文件：
+
+```console
+docker run --rm --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts,readonly comment-classifier-dev:0.1.0 python -c "from pathlib import Path; print('\n'.join(str(path) for path in sorted(Path('/app/artifacts/model').rglob('*')) if path.is_file()))"
+```
+
+此命令只读访问命名卷，不会复制或修改模型。需要把模型导出到项目目录时，继续执行第 8 步。
+
+### 6. 启动 API
 
 ```console
 docker run --detach --name comment-classifier-api --publish 8000:8000 --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts,readonly comment-classifier-dev:0.1.0
@@ -78,7 +90,7 @@ docker logs comment-classifier-api
 
 刚启动时健康状态可能是 `starting`；等待片刻后再次执行 inspect，预期结果为 `healthy`。
 
-### 6. 使用 Docker 容器验证 API
+### 7. 使用 Docker 容器验证 API
 
 验证容器直接共享 API 容器的网络，不依赖宿主机 curl、端口回环名称或操作系统网络约定。
 
@@ -103,7 +115,7 @@ docker stop comment-classifier-api
 docker rm comment-classifier-api
 ```
 
-### 7. 构建发布镜像
+### 8. 构建发布镜像
 
 发布构建需要把命名卷中的已验证模型复制到仓库相对目录。整个导出过程仍由 Docker 完成：
 

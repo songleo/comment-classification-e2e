@@ -74,13 +74,23 @@ docker run --rm --name comment-classifier-e2e --mount type=volume,source=comment
 
 `--rm` 只删除本次临时容器，不删除开发镜像或两个命名卷。命令退出码为 `0` 才算通过。
 
-## 6. 查看卷中生成物
+## 6. 查找训练完成的模型和报告
 
-不需要宿主机文件工具，使用开发镜像查看：
+训练结果保存在 Docker 命名卷 `comment-classifier-artifacts` 中。端到端命令的 `--rm` 只删除临时容器，不会删除该卷。模型在挂载该卷的容器内对应 `/app/artifacts/model/`。
+
+只列出训练完成的模型、tokenizer 和训练元数据文件：
+
+```console
+docker run --rm --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts,readonly comment-classifier-dev:0.1.0 python -c "from pathlib import Path; print('\n'.join(str(path) for path in sorted(Path('/app/artifacts/model').rglob('*')) if path.is_file()))"
+```
+
+查看模型和评估报告的全部文件：
 
 ```console
 docker run --rm --mount type=volume,source=comment-classifier-artifacts,target=/app/artifacts,readonly comment-classifier-dev:0.1.0 python -c "from pathlib import Path; print('\n'.join(str(path) for path in sorted(Path('/app/artifacts').rglob('*')) if path.is_file()))"
 ```
+
+这两个命令都只读访问命名卷，不会复制或修改文件。需要把模型复制到项目目录时，执行第 11 节的导出步骤。
 
 主要内容：
 
