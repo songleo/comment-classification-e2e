@@ -2,9 +2,9 @@
 
 ## 验证范围
 
-验证日期为 2026-08-29（Asia/Shanghai）。本次只使用标准 Docker CLI，从镜像构建开始，执行容器内代码规范检查、单元测试、数据校验、CPU 训练、独立测试评估、CLI 推理、本地 API 和发布镜像验收。
+验证日期为 2026-08-29（Asia/Shanghai）。本次只使用标准 Docker CLI，从镜像构建开始，执行容器内代码规范检查、单元测试、数据校验、CPU 训练、独立测试评估、CLI 推理、本地 API、发布镜像、远端镜像和 Kubernetes 清单 schema 验收。
 
-宿主机 Python、curl、绝对路径和额外容器编排工具不属于交付前提。模型、报告和基础模型缓存使用 Docker 命名卷保存。Docker Hub 推送和 Kubernetes 是独立阶段，状态单独记录。
+宿主机 Python、curl、kubectl、绝对路径和额外容器编排工具不属于本地交付前提。模型、报告和基础模型缓存使用 Docker 命名卷保存。Docker Hub 发布、清单 schema 校验和 Kubernetes 集群部署是独立阶段，状态单独记录。
 
 维护者随后在提交 `3e5c48b62a0eed80296fc2af291413d2374d917a` 上，按 [README](../README.md)“方式 A”的命令顺序手工完成开发镜像构建、两个命名卷创建、完整 E2E、API 健康检查、容器内 `/health` 与 `/predict` 调用以及 API 容器清理，并确认全部通过。
 
@@ -44,8 +44,11 @@
 | 模型导出 | PASS | `docker create` 与 `docker cp` 从命名卷复制模型到相对构建目录 |
 | 发布镜像构建 | PASS | `songleo/comment-classification-e2e:0.1.0` 本地构建成功 |
 | 发布镜像独立运行 | PASS | 不挂载源码或模型卷时容器 `healthy`，接口返回成功 |
-| Docker Hub 推送 | BLOCKED | `registry-1.docker.io:443` 直连超时；远端 digest 尚未产生 |
-| Kubernetes | UNKNOWN | 没有获批集群、服务端 dry-run、rollout 或接口证据 |
+| Docker Hub 发布 | PASS | `songleo/comment-classification-e2e:0.1.0` 已发布，摘要为 `sha256:a971d00cc98932d08be4de1f65e14fc3af9dcdd3f768079ce14e472495c10b22` |
+| Docker Hub 远端运行 | PASS | 直接 pull 后容器 `healthy`；`/health` 和 `/predict` 均成功，远端模型版本为 `20260828T234758Z` |
+| 国内加速入口 | PASS | `docker.1ms.run/songleo/comment-classification-e2e:0.1.0` 拉取成功，与 Docker Hub 镜像 ID 相同，接口复测成功 |
+| Kubernetes 清单 schema | PASS | `kubeconform v0.7.0` 在 Docker 中检查 2 个资源：Valid 2、Invalid 0、Errors 0、Skipped 0 |
+| Kubernetes 集群 | UNKNOWN | 没有获批集群、服务端 dry-run、rollout 或集群接口证据 |
 
 ## 训练与评估结果
 
@@ -56,7 +59,8 @@
 | 测试宏平均 F1 | 0.957685 |
 | 投诉召回率 | 1.000 |
 | 投诉召回率门槛 | 0.700，PASS |
-| 模型版本 | `20260828T234758Z` |
+| 本地本次训练模型版本 | `20260829T014541Z` |
+| Docker Hub 发布模型版本 | `20260828T234758Z` |
 
 ## 复现命令
 
@@ -75,10 +79,16 @@ docker create --name comment-classifier-model-export --mount type=volume,source=
 docker cp comment-classifier-model-export:/source/model/. ./artifacts/model
 docker rm comment-classifier-model-export
 docker build --file Dockerfile.release --tag songleo/comment-classification-e2e:0.1.0 .
+docker run --detach --name comment-classifier-release --publish 8000:8000 songleo/comment-classification-e2e:0.1.0
+docker inspect --format "{{.State.Health.Status}}" comment-classifier-release
+docker run --rm --network container:comment-classifier-release songleo/comment-classification-e2e:0.1.0 python -c "import json,urllib.request; print(json.load(urllib.request.urlopen('http://127.0.0.1:8000/health')))"
+docker run --rm --network container:comment-classifier-release songleo/comment-classification-e2e:0.1.0 python -c "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:8000/predict',data=json.dumps({'text':'\u5ba2\u670d\u4e00\u76f4\u4e0d\u5904\u7406\u9000\u6b3e'}).encode(),headers={'Content-Type':'application/json'}); print(json.load(urllib.request.urlopen(request)))"
+docker stop comment-classifier-release
+docker rm comment-classifier-release
 ```
 
-只验证发布镜像时，可以按 [README](../README.md) 直接拉取 Docker Hub 镜像；在当前远端推送完成前，该路径仍不可用。
+只验证发布镜像时，可以按 [README](../README.md) 直接拉取 Docker Hub 镜像；下载较慢或代理不支持该仓库时，使用文档中已验证的国内加速入口。
 
 ## 结论边界
 
-本次 PASS 只证明当前 Docker CPU 链路、合成数据、模型训练、评估、推理和本地 API 闭环。它不能证明真实业务准确率，也不能替代 Docker Hub 推送、Kubernetes、TLS、认证、容量、监控、漏洞扫描、签名或回滚验收。
+本次 PASS 证明当前 Docker CPU 链路、合成数据、模型训练、评估、推理、本地 API、发布镜像、Docker Hub 拉取运行和清单 schema 校验闭环。它不能证明真实业务准确率，也不能替代 Kubernetes 集群、TLS、认证、容量、监控、漏洞扫描、签名或回滚验收。

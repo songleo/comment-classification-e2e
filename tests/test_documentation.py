@@ -17,6 +17,7 @@ LOCAL_PYTHON_WORKFLOW_PATTERNS = {
     "local virtual environment": re.compile(r"(?i)(?:python|py)\s+-m\s+venv|\.venv[\\/]"),
     "bare local Python module command": re.compile(r"(?m)^\s*(?:&\s*\$python\s+|python\s+)-m\s+"),
     "legacy local PowerShell workflow": re.compile(r"scripts[\\/](?:run-e2e|start-local-api)\.ps1"),
+    "bare host kubectl command": re.compile(r"(?m)^\s*kubectl\s+"),
 }
 
 COMPOSE_PATTERNS = {

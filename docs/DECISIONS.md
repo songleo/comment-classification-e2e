@@ -50,7 +50,7 @@ Hugging Face 基础模型缓存放在 Docker 命名卷 `comment-classifier-huggi
 
 ## Kubernetes 边界
 
-仓库提供 Deployment 和 ClusterIP Service 示例，不假设 Ingress、TLS、认证、镜像拉取凭据、网络策略、存储、GPU 或监控方案。部署步骤见 [KUBERNETES.md](KUBERNETES.md)。
+仓库提供 Deployment 和 ClusterIP Service 示例，不假设 Ingress、TLS、认证、镜像拉取凭据、网络策略、存储、GPU 或监控方案。清单固定到已验证的发布镜像摘要。本地 schema 校验和集群访问都通过 Docker 容器执行，不要求宿主机安装 kubectl；部署步骤见 [KUBERNETES.md](KUBERNETES.md)。
 
 本地 Docker 通过、发布镜像成功、镜像推送成功和 Kubernetes rollout 成功必须分别记录。没有获批集群和实时证据时，Kubernetes 状态必须为 `UNKNOWN`。
 

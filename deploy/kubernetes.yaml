@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: docker.io/songleo/comment-classification-e2e:0.1.0
+          image: docker.io/songleo/comment-classification-e2e@sha256:a971d00cc98932d08be4de1f65e14fc3af9dcdd3f768079ce14e472495c10b22
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

@@ -2,7 +2,7 @@
 
 本项目用固定的四分类合成数据演示数据校验、Transformer 微调、独立测试集评估、命令行推理、FastAPI 服务、发布镜像和 Kubernetes 部署。
 
-取得项目源码并进入项目根目录后，唯一运行前提是可用的 Docker Engine 或 Docker Desktop。文档不假设用户使用 Windows、Linux、macOS、WSL、PowerShell 或某一种终端，也不需要宿主机 Python、curl 或额外的容器编排工具。
+取得项目源码并进入项目根目录后，唯一运行前提是能够执行 `docker` 命令。Python、测试、训练、API 调用和文件复制全部在容器中完成。
 
 ## 固定边界
 
@@ -24,7 +24,7 @@
 
 ## 方式 A：从源码本地构建并验证
 
-以下命令全部是单行标准 Docker CLI。可以在任何能够调用 `docker` 的终端中逐条执行。
+以下命令全部是单行标准 Docker CLI，逐条执行即可。
 
 ### 1. 确认 Docker
 
@@ -120,7 +120,8 @@ docker build --file Dockerfile.release --tag songleo/comment-classification-e2e:
 docker run --detach --name comment-classifier-release --publish 8000:8000 songleo/comment-classification-e2e:0.1.0
 docker inspect --format "{{.State.Health.Status}}" comment-classifier-release
 docker logs comment-classifier-release
-docker run --rm --network container:comment-classifier-release comment-classifier-dev:0.1.0 python -c "import httpx; print(httpx.post('http://127.0.0.1:8000/predict', json={'text':'客服一直不处理退款'}).json())"
+docker run --rm --network container:comment-classifier-release songleo/comment-classification-e2e:0.1.0 python -c "import json,urllib.request; print(json.load(urllib.request.urlopen('http://127.0.0.1:8000/health')))"
+docker run --rm --network container:comment-classifier-release songleo/comment-classification-e2e:0.1.0 python -c "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:8000/predict',data=json.dumps({'text':'\u5ba2\u670d\u4e00\u76f4\u4e0d\u5904\u7406\u9000\u6b3e'}).encode(),headers={'Content-Type':'application/json'}); print(json.load(urllib.request.urlopen(request)))"
 docker stop comment-classifier-release
 docker rm comment-classifier-release
 ```
@@ -129,20 +130,27 @@ docker rm comment-classifier-release
 
 ## 方式 B：直接拉取发布镜像
 
-远端标签发布成功后，只验证 API 时不需要源码训练：
+已发布镜像的不可变摘要为 `sha256:a971d00cc98932d08be4de1f65e14fc3af9dcdd3f768079ce14e472495c10b22`。只验证 API 时不需要构建开发镜像或训练模型：
 
 ```console
 docker pull songleo/comment-classification-e2e:0.1.0
 docker run --detach --name comment-classifier --publish 8000:8000 songleo/comment-classification-e2e:0.1.0
 docker inspect --format "{{.State.Health.Status}}" comment-classifier
+docker logs comment-classifier
+docker run --rm --network container:comment-classifier songleo/comment-classification-e2e:0.1.0 python -c "import json,urllib.request; print(json.load(urllib.request.urlopen('http://127.0.0.1:8000/health')))"
+docker run --rm --network container:comment-classifier songleo/comment-classification-e2e:0.1.0 python -c "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:8000/predict',data=json.dumps({'text':'\u5ba2\u670d\u4e00\u76f4\u4e0d\u5904\u7406\u9000\u6b3e'}).encode(),headers={'Content-Type':'application/json'}); print(json.load(urllib.request.urlopen(request)))"
 ```
 
-Docker Hub 下载较慢时使用 DaoCloud 代理：
+刚启动时可能显示 `starting`；等待片刻后重新执行 inspect，预期为 `healthy`。
+
+Docker Hub 下载较慢或当前 Docker Hub 代理不支持该仓库时，使用已验证的国内加速入口，再标记为相同的标准镜像名：
 
 ```console
-docker pull docker.m.daocloud.io/songleo/comment-classification-e2e:0.1.0
-docker tag docker.m.daocloud.io/songleo/comment-classification-e2e:0.1.0 songleo/comment-classification-e2e:0.1.0
+docker pull docker.1ms.run/songleo/comment-classification-e2e:0.1.0
+docker tag docker.1ms.run/songleo/comment-classification-e2e:0.1.0 songleo/comment-classification-e2e:0.1.0
 ```
+
+加速入口只改变下载地址，不改变镜像内容；本次实测两种地址得到相同镜像 ID。完成 pull 和 tag 后，继续执行上面的 run、inspect、logs、`/health` 和 `/predict` 命令。
 
 验证结束后：
 
@@ -151,7 +159,7 @@ docker stop comment-classifier
 docker rm comment-classifier
 ```
 
-当前 Docker Hub 推送状态见 [验证记录](docs/VALIDATION.md)。远端镜像尚未成功发布时，请使用方式 A。
+完整实测记录见 [验证记录](docs/VALIDATION.md)。
 
 ## 单独运行某个阶段
 
@@ -179,7 +187,7 @@ docker image rm comment-classifier-dev:0.1.0
 
 ## 当前验证边界
 
-最新实测证据见 [docs/VALIDATION.md](docs/VALIDATION.md)。本地 Docker 通过不代表镜像已推送，也不代表 Kubernetes、生产网络、TLS、认证、容量或监控已经验收。
+最新实测证据见 [docs/VALIDATION.md](docs/VALIDATION.md)。本地构建链路和已发布远端镜像均已验证；这不代表 Kubernetes 集群、生产网络、TLS、认证、容量或监控已经验收。
 
 ## 许可证
 

@@ -1,6 +1,6 @@
 # 零基础 Docker 教程
 
-这份教程不假设操作系统或终端。用户取得项目源码、进入项目根目录并安装可用的 Docker Engine 或 Docker Desktop 后，即可逐条执行所有步骤。Python、PyTorch、测试、训练、API 调用和模型导出都由 Docker 容器完成。
+用户取得项目源码并进入项目根目录后，只要能够执行 `docker` 命令，就可以逐条完成所有步骤。Python、PyTorch、测试、训练、API 调用和模型导出都由 Docker 容器完成。
 
 ## 1. 确认 Docker
 
@@ -174,7 +174,8 @@ docker build --file Dockerfile.release --tag songleo/comment-classification-e2e:
 docker run --detach --name comment-classifier-release --publish 8000:8000 songleo/comment-classification-e2e:0.1.0
 docker inspect --format "{{.State.Health.Status}}" comment-classifier-release
 docker logs comment-classifier-release
-docker run --rm --network container:comment-classifier-release comment-classifier-dev:0.1.0 python -c "import httpx; print(httpx.post('http://127.0.0.1:8000/predict', json={'text':'客服一直不处理退款'}).json())"
+docker run --rm --network container:comment-classifier-release songleo/comment-classification-e2e:0.1.0 python -c "import json,urllib.request; print(json.load(urllib.request.urlopen('http://127.0.0.1:8000/health')))"
+docker run --rm --network container:comment-classifier-release songleo/comment-classification-e2e:0.1.0 python -c "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:8000/predict',data=json.dumps({'text':'\u5ba2\u670d\u4e00\u76f4\u4e0d\u5904\u7406\u9000\u6b3e'}).encode(),headers={'Content-Type':'application/json'}); print(json.load(urllib.request.urlopen(request)))"
 docker stop comment-classifier-release
 docker rm comment-classifier-release
 ```
@@ -183,22 +184,29 @@ docker rm comment-classifier-release
 
 ## 12. 直接拉取发布镜像
 
-远端标签发布成功后，可以跳过源码训练：
+远端镜像已经发布，摘要为 `sha256:a971d00cc98932d08be4de1f65e14fc3af9dcdd3f768079ce14e472495c10b22`。可以跳过源码训练：
 
 ```console
 docker pull songleo/comment-classification-e2e:0.1.0
 docker run --detach --name comment-classifier --publish 8000:8000 songleo/comment-classification-e2e:0.1.0
 docker inspect --format "{{.State.Health.Status}}" comment-classifier
+docker logs comment-classifier
+docker run --rm --network container:comment-classifier songleo/comment-classification-e2e:0.1.0 python -c "import json,urllib.request; print(json.load(urllib.request.urlopen('http://127.0.0.1:8000/health')))"
+docker run --rm --network container:comment-classifier songleo/comment-classification-e2e:0.1.0 python -c "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:8000/predict',data=json.dumps({'text':'\u5ba2\u670d\u4e00\u76f4\u4e0d\u5904\u7406\u9000\u6b3e'}).encode(),headers={'Content-Type':'application/json'}); print(json.load(urllib.request.urlopen(request)))"
+docker stop comment-classifier
+docker rm comment-classifier
 ```
 
-Docker Hub 下载较慢时：
+刚启动时可能显示 `starting`；等待片刻后再次执行 inspect。预期健康检查返回 `ok`，预测标签返回 `complaint`。
+
+Docker Hub 下载较慢或当前 Docker Hub 代理不支持该仓库时：
 
 ```console
-docker pull docker.m.daocloud.io/songleo/comment-classification-e2e:0.1.0
-docker tag docker.m.daocloud.io/songleo/comment-classification-e2e:0.1.0 songleo/comment-classification-e2e:0.1.0
+docker pull docker.1ms.run/songleo/comment-classification-e2e:0.1.0
+docker tag docker.1ms.run/songleo/comment-classification-e2e:0.1.0 songleo/comment-classification-e2e:0.1.0
 ```
 
-远端镜像尚未发布时，使用前面的本地构建方式。
+本次实测该加速地址与 Docker Hub 地址得到相同镜像 ID。完成 pull 和 tag 后，再执行本节的 run 与接口验证命令。
 
 ## 13. 常见问题
 
@@ -211,6 +219,20 @@ docker ps --all --filter name=comment-classifier
 ```
 
 确认旧测试容器不再需要后，按名称停止并删除。
+
+Docker 报错中出现哪个名称，就只清理对应的旧测试容器：
+
+```console
+docker rm --force comment-classifier-e2e
+docker rm --force comment-classifier-api
+docker rm --force comment-classifier-model-export
+docker rm --force comment-classifier-release
+docker rm --force comment-classifier
+docker rm --force comment-classifier-manifest-check
+docker rm --force comment-classifier-kubernetes-input-copy
+```
+
+不要删除与报错无关的容器，也不要用全局清理命令代替按名称处理。
 
 ### API 不健康
 
@@ -239,4 +261,4 @@ docker volume rm comment-classifier-huggingface-cache
 
 ## 14. 验证边界
 
-本地 Docker 端到端通过可以证明当前代码、数据、依赖、训练、评估、推理和 API 在该容器环境中闭环。它不能证明真实业务准确率，也不能自动证明镜像仓库推送、Kubernetes、TLS、权限、容量、监控或生产回滚已经通过。
+本地 Docker 端到端通过可以证明当前代码、数据、依赖、训练、评估、推理和 API 在该容器环境中闭环；远端镜像拉取与接口验证也已单独通过。两者都不能证明真实业务准确率，也不能自动证明 Kubernetes 集群、TLS、权限、容量、监控或生产回滚已经通过。
