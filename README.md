@@ -16,6 +16,7 @@
 ## 文档导航
 
 - [零基础 Docker 教程](docs/BEGINNER_GUIDE.md)
+- [项目博客材料](docs/BLOG_MATERIAL.md)
 - [Docker 验证记录](docs/VALIDATION.md)
 - [技术选择与限制](docs/DECISIONS.md)
 - [Kubernetes 部署](docs/KUBERNETES.md)
