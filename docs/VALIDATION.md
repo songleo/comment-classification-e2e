@@ -1,8 +1,10 @@
-# Docker 验证记录
+# Docker 与 Kubernetes 验证记录
 
 ## 验证范围
 
 验证日期为 2026-08-29（Asia/Shanghai）。本次只使用标准 Docker CLI，从镜像构建开始，执行容器内代码规范检查、单元测试、数据校验、CPU 训练、独立测试评估、CLI 推理、本地 API、发布镜像、远端镜像和 Kubernetes 清单 schema 验收。
+
+2026-08-31 在获批的单节点 demo 集群追加执行 Kubernetes 服务端 dry-run、实际 rollout、ClusterIP/NodePort 接口和输入边界测试。详细记录见 [Kubernetes 部署](KUBERNETES.md#8-2026-08-31-demo-实测记录)。
 
 宿主机 Python、curl、kubectl、绝对路径和额外容器编排工具不属于本地交付前提。模型、报告和基础模型缓存使用 Docker 命名卷保存。Docker Hub 发布、清单 schema 校验和 Kubernetes 集群部署是独立阶段，状态单独记录。
 
@@ -48,7 +50,7 @@
 | Docker Hub 远端运行 | PASS | 直接 pull 后容器 `healthy`；`/health` 和 `/predict` 均成功，远端模型版本为 `20260828T234758Z` |
 | 国内加速入口 | PASS | `docker.1ms.run/songleo/comment-classification-e2e:0.1.0` 拉取成功，与 Docker Hub 镜像 ID 相同，接口复测成功 |
 | Kubernetes 清单 schema | PASS | `kubeconform v0.7.0` 在 Docker 中检查 2 个资源：Valid 2、Invalid 0、Errors 0、Skipped 0 |
-| Kubernetes 集群 | UNKNOWN | 没有获批集群、服务端 dry-run、rollout 或集群接口证据 |
+| Kubernetes demo 集群 | PASS（demo 范围） | k3s `v1.33.1+k3s1` 服务端 dry-run 与 rollout 通过；Pod `1/1 Running`、重启 0；运行镜像摘要一致；健康、四分类、中文、空字符串和超长输入测试通过 |
 
 ## 训练与评估结果
 
@@ -91,4 +93,4 @@ docker rm comment-classifier-release
 
 ## 结论边界
 
-本次 PASS 证明当前 Docker CPU 链路、合成数据、模型训练、评估、推理、本地 API、发布镜像、Docker Hub 拉取运行和清单 schema 校验闭环。它不能证明真实业务准确率，也不能替代 Kubernetes 集群、TLS、认证、容量、监控、漏洞扫描、签名或回滚验收。
+当前 PASS 证明 Docker CPU 链路、合成数据、模型训练、评估、推理、本地 API、发布镜像、Docker Hub 拉取运行、清单 schema 校验，以及指定单节点 demo 集群的部署和接口闭环。它不能证明真实业务准确率，也不能替代生产 Kubernetes、TLS、认证、网络策略、容量、监控、漏洞扫描、签名、升级或回滚验收。

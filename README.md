@@ -200,7 +200,7 @@ docker image rm comment-classifier-dev:0.1.0
 
 ## 当前验证边界
 
-最新实测证据见 [docs/VALIDATION.md](docs/VALIDATION.md)。本地构建链路和已发布远端镜像均已验证；这不代表 Kubernetes 集群、生产网络、TLS、认证、容量或监控已经验收。
+最新实测证据见 [docs/VALIDATION.md](docs/VALIDATION.md)。本地构建链路、已发布远端镜像和指定单节点 demo Kubernetes 部署均已分别验证；这不代表生产集群、生产网络、TLS、认证、容量或监控已经验收。
 
 ## 许可证
 
